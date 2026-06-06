@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { --danger: #ff5555; }
+
+@layer base {
+  * { @apply m-0 p-0 box-border; }
+  body { @apply bg-bg text-text font-mono text-sm h-screen; }
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { @apply bg-bg; }
+  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-text-dim; }
+  input, select { @apply outline-none; }
+  input:focus, select:focus { @apply border-primary; }
+}
