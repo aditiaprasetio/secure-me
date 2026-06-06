@@ -50,9 +50,53 @@ export default function App() {
   const esRef = useRef<EventSource | null>(null)
   const outputLinesRef = useRef<string[]>([])
 
+  const getRecommendationForScan = useCallback(async (scan: Scan) => {
+    const s = loadSettings()
+    if (!s || !s.key) {
+      setSettingsOpen(true)
+      setAiResult('⚠ AI settings not configured. Please enter your API key.')
+      return
+    }
+    setAiResult('⏳ Analyzing scan results with AI...')
+    try {
+      const r = await fetch('/api/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: s.provider,
+          model: s.model,
+          api_key: s.key,
+          target: scan.target,
+          tool: scan.tool,
+          args: scan.args,
+          output: scan.output,
+        }),
+      })
+      if (!r.ok) { const err = await r.json(); throw new Error(err.detail) }
+      const d = await r.json()
+      const rec: AISavedResult = {
+        provider: s.provider, model: s.model,
+        result: d.result, created_at: new Date().toISOString(),
+      }
+      saveRecToHistory(scan.id, rec)
+      setScans(loadHistory())
+      setAiResult(d.result)
+    } catch (e: any) {
+      setAiResult(`⚠ Error: ${e.message}`)
+    }
+  }, [])
+
+  const getRecommendation = useCallback(async () => {
+    const id = currentScanId
+    if (!id) return
+    const match = loadHistory().find(s => s.id === id)
+    if (!match) return
+    await getRecommendationForScan(match)
+  }, [currentScanId, getRecommendationForScan])
+
   const connectStream = useCallback((scanId: string, meta: {
     id: string; target: string; tool: string; args: string; created_at: string;
-  }) => {
+  }, autoRecommend: boolean) => {
     if (esRef.current) esRef.current.close()
     const es = new EventSource(`/api/scan/${scanId}/stream`)
     esRef.current = es
@@ -81,6 +125,10 @@ export default function App() {
         }
         saveScanToHistory(completedScan)
         setScans(loadHistory())
+
+        if (autoRecommend) {
+          getRecommendationForScan(completedScan)
+        }
       }
     }
     es.onerror = () => {
@@ -88,9 +136,9 @@ export default function App() {
       es.close()
       esRef.current = null
     }
-  }, [])
+  }, [getRecommendationForScan])
 
-  const startScan = useCallback(async (target: string, tool: string, args: string) => {
+  const startScan = useCallback(async (target: string, tool: string, args: string, autoRecommend: boolean = false) => {
     if (esRef.current) { esRef.current.close(); esRef.current = null }
     setCurrentScanId(null)
     setOutputLines([])
@@ -113,7 +161,7 @@ export default function App() {
         args: data.args,
         created_at: data.created_at,
       }
-      connectStream(data.scan_id, meta)
+      connectStream(data.scan_id, meta, autoRecommend)
     } catch (e: any) {
       setOutputLines([`[!] Failed: ${e.message}`])
       outputLinesRef.current = [`[!] Failed: ${e.message}`]
@@ -138,43 +186,6 @@ export default function App() {
     setAiResult(null)
     setScanStatus('idle')
   }, [])
-
-  const getRecommendation = useCallback(async () => {
-    const id = currentScanId
-    if (!id) return
-    const match = loadHistory().find(s => s.id === id)
-    if (!match) return
-
-    const s = loadSettings()
-    if (!s || !s.key) { setSettingsOpen(true); return }
-    setAiResult('⏳ Analyzing scan results with AI...')
-    try {
-      const r = await fetch('/api/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: s.provider,
-          model: s.model,
-          api_key: s.key,
-          target: match.target,
-          tool: match.tool,
-          args: match.args,
-          output: match.output,
-        }),
-      })
-      if (!r.ok) { const err = await r.json(); throw new Error(err.detail) }
-      const d = await r.json()
-      const rec: AISavedResult = {
-        provider: s.provider, model: s.model,
-        result: d.result, created_at: new Date().toISOString(),
-      }
-      saveRecToHistory(id, rec)
-      setScans(loadHistory())
-      setAiResult(d.result)
-    } catch (e: any) {
-      setAiResult(`⚠ Error: ${e.message}`)
-    }
-  }, [currentScanId])
 
   const saveSettings = useCallback((s: AISettings) => {
     localStorage.setItem(AI_STORAGE_KEY, JSON.stringify(s))

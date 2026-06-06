@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-interface Props { onStart: (target: string, tool: string, args: string) => void; running: boolean }
+interface Props { onStart: (target: string, tool: string, args: string, autoRecommend?: boolean) => void; running: boolean }
 
 const TOOL_PLACEHOLDERS: Record<string, string> = {
   nmap: 'scanme.nmap.org or 192.168.1.1',
@@ -26,14 +26,14 @@ export default function Sidebar({ onStart, running }: Props) {
 
   const sel = tools.find(t => t.id === tool)
 
-  const handleStart = () => {
+  const handleStart = (autoRecommend: boolean = false) => {
     if (!target.trim()) {
       targetRef.current?.focus()
       targetRef.current && (targetRef.current.style.borderColor = 'var(--danger)')
       setTimeout(() => { if (targetRef.current) targetRef.current.style.borderColor = '' }, 1500)
       return
     }
-    onStart(target.trim(), tool, args.trim())
+    onStart(target.trim(), tool, args.trim(), autoRecommend)
   }
 
   return (
@@ -44,7 +44,7 @@ export default function Sidebar({ onStart, running }: Props) {
         <label className="text-xs text-text-dim">Target</label>
         <input ref={targetRef} value={target} onChange={e => setTarget(e.target.value)}
           placeholder={sel?.placeholder || 'Enter target'}
-          onKeyDown={e => e.key === 'Enter' && handleStart()}
+          onKeyDown={e => e.key === 'Enter' && handleStart(false)}
           className="bg-bg border border-border rounded px-3 py-2.5 text-sm text-text font-mono" />
       </div>
 
@@ -69,10 +69,17 @@ export default function Sidebar({ onStart, running }: Props) {
         </div>
       )}
 
-      <button onClick={handleStart} disabled={running}
-        className="btn-primary flex items-center justify-center gap-2 px-5 py-2.5 rounded font-semibold text-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-        ▶ Run Scan
-      </button>
+      <div className="flex flex-col gap-2">
+        <button onClick={() => handleStart(false)} disabled={running}
+          className="w-full bg-primary text-black hover:bg-primary-dim flex items-center justify-center gap-2 px-5 py-2.5 rounded font-semibold text-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border-none transition-colors">
+          ▶ Run Scan
+        </button>
+
+        <button onClick={() => handleStart(true)} disabled={running}
+          className="w-full bg-surface-2 text-primary border border-primary/30 hover:border-primary hover:bg-surface-2/80 flex items-center justify-center gap-2 px-5 py-2.5 rounded font-semibold text-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+          🤖 Scan & AI Recommendation
+        </button>
+      </div>
 
       <div className="mt-2 px-3 py-2.5 bg-bg rounded border border-border text-[11px] text-text-dim leading-relaxed">
         <strong>⚠ Warning:</strong> Only scan targets you own or have explicit permission to test.
